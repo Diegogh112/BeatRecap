@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Entorno virtual
+.venv/
+venv/
+
+# Temporales del proyecto
+tmp/*
+!tmp/.gitkeep
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+.DS_Store

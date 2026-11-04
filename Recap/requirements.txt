@@ -1,0 +1,18 @@
+# Beat Recap — dependencias (versiones fijadas, probadas en Python 3.14)
+fastapi==0.161.1
+uvicorn[standard]==0.54.0
+librosa==1.0.0
+numpy==2.5.4
+pillow==13.0.0
+python-multipart==0.0.32
+imageio-ffmpeg==0.6.0
+# soundfile/scipy/numba vienen con librosa; se listan por reproducibilidad
+soundfile==0.14.0
+scipy==1.18.1
+numba==0.68.0
+
+# Pruebas
+pytest==9.1.1
+
+# Opcional — solo para la intro "Vórtice" (Fase 3):
+# opencv-python

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beat Recap</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://unpkg.com/wavesurfer.js@6.6.4/dist/wavesurfer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+</head>
+<body>
+
+<header>
+  <h1>🎵 Beat Recap</h1>
+  <p class="subtitle">Genera un video donde las fotos cambian al ritmo de la música</p>
+  <button id="new-session-btn" class="btn small" title="Borrar todo y empezar de cero">🗑 Nueva sesión</button>
+</header>
+
+<main>
+
+  <!-- ── PASO 1: Audio ──────────────────────────────────────────────── -->
+  <section id="step-audio" class="card">
+    <div class="card-header">
+      <h2><span class="step-badge">1</span>Sube el audio</h2>
+    </div>
+    <p class="hint">Acepta mp3, wav y m4a · máximo 60 segundos</p>
+    <div class="row">
+      <input type="file" id="audio-input" accept=".mp3,.wav,.m4a,audio/*" />
+      <button id="analyze-btn" class="btn primary" disabled>Analizar →</button>
+    </div>
+    <div id="audio-status" class="status"></div>
+  </section>
+
+  <!-- ── PASO 2: Beats y drop ───────────────────────────────────────── -->
+  <section id="step-beats" class="card hidden">
+    <div class="card-header">
+      <h2><span class="step-badge">2</span>Elige el punto de drop</h2>
+    </div>
+
+    <div class="meta">
+      <span><b>BPM:</b> <span id="bpm-val">—</span></span>
+      <span><b>Beats:</b> <span id="beats-count">—</span></span>
+      <span><b>Duración:</b> <span id="dur-val">—</span> s</span>
+    </div>
+
+    <div id="waveform-wrap">
+      <div id="waveform"></div>
+      <canvas id="beats-overlay"></canvas>
+    </div>
+
+    <div class="controls-grid" style="margin-top:14px">
+      <div class="control-group">
+        <label>Rejilla de beats</label>
+        <div class="btn-group">
+          <button id="bpm-half"   class="btn small">÷2</button>
+          <button id="bpm-double" class="btn small">×2</button>
+        </div>
+      </div>
+      <div class="control-group">
+        <label for="offset-ms">Offset (ms)</label>
+        <input type="number" id="offset-ms" value="0" step="10" style="width:100px" />
+      </div>
+      <div class="control-group">
+        <label for="drop-val">Drop (s)</label>
+        <div class="row tight">
+          <input type="number" id="drop-val" value="0" step="0.01" min="0" style="width:90px" />
+          <button id="snap-btn" class="btn small">⊙ Snap</button>
+        </div>
+      </div>
+      <div class="control-group">
+        <label>Reproducción</label>
+        <div class="btn-group">
+          <button id="play-drop" class="btn small">▶ Drop</button>
+          <button id="stop-btn"  class="btn small">⏹</button>
+        </div>
+      </div>
+      <div class="control-group">
+        <label for="n-select">Cambiar cada</label>
+        <select id="n-select">
+          <option value="1">1 beat</option>
+          <option value="2">2 beats</option>
+          <option value="4">4 beats</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>Imágenes necesarias</label>
+        <div class="big" id="needed-count">—</div>
+      </div>
+    </div>
+    <div id="beat-warnings" class="warnings"></div>
+  </section>
+
+  <!-- ── PASO 3: Imágenes y clips ───────────────────────────────────── -->
+  <section id="step-images" class="card hidden">
+    <div class="card-header">
+      <h2><span class="step-badge">3</span>Sube y ordena las imágenes</h2>
+    </div>
+
+    <div class="images-toolbar">
+      <div class="left">
+        <input type="file" id="image-input"
+          accept=".jpg,.jpeg,.png,.webp,.mp4,.mov,image/*,video/mp4,video/quicktime"
+          multiple />
+        <span id="img-count" class="hint" style="margin:0"></span>
+      </div>
+      <div class="right">
+        <button id="open-months-btn" class="btn small">📅 Asignar meses</button>
+        <button id="clear-images-btn" class="btn small danger" title="Eliminar todas las imágenes">🗑 Eliminar todo</button>
+      </div>
+    </div>
+
+    <p class="hint" style="margin-bottom:6px">
+      Haz clic en una miniatura para editar el encuadre o elegir el fragmento del clip · Arrastra para reordenar
+    </p>
+
+    <div id="image-grid" class="image-grid"></div>
+
+    <!-- Panel de asignación de meses (visible cuando se activa) -->
+    <div id="months-panel" class="hidden" style="margin-top:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <b style="font-size:13px">Asignar mes a cada imagen</b>
+        <div style="display:flex;gap:6px">
+          <button id="months-clear" class="btn xs danger">Limpiar</button>
+          <button id="months-panel-close" class="btn xs">✕ Cerrar</button>
+        </div>
+      </div>
+      <p class="hint" style="margin:0 0 10px">
+        Cada imagen mostrará el nombre del mes durante unos instantes al aparecer en el video.
+      </p>
+      <div id="months-list"></div>
+    </div>
+
+    <div id="image-warnings" class="warnings"></div>
+  </section>
+
+  <!-- ── PASO 4: Intro ──────────────────────────────────────────────── -->
+  <section id="step-intro" class="card hidden">
+    <div class="card-header">
+      <h2><span class="step-badge">4</span>Configura la intro y el carrusel</h2>
+    </div>
+
+    <!-- Sub-sección: intro -->
+    <p class="section-label">Intro</p>
+    <div class="intro-grid">
+      <div class="control-group">
+        <label for="intro-style">Estilo de intro</label>
+        <select id="intro-style">
+          <option value="text">Solo texto</option>
+          <option value="zoom_mosaic">Zoom mosaico</option>
+          <option value="falling">Túnel de fotos</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="title-input">Título</label>
+        <input type="text" id="title-input" value="2025 RECAP" />
+      </div>
+      <div class="control-group">
+        <label for="subtitle-input">Subtítulo (opcional)</label>
+        <input type="text" id="subtitle-input" placeholder="Subtítulo" />
+      </div>
+      <div class="control-group">
+        <label for="color-input">Color del texto</label>
+        <input type="color" id="color-input" value="#FFFFFF" />
+      </div>
+      <div class="control-group">
+        <label for="font-select">Fuente</label>
+        <select id="font-select">
+          <option>Impact</option>
+          <option>Arial Bold</option>
+          <option>Arial</option>
+          <option>Georgia</option>
+          <option>Courier New</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Sub-sección: carrusel -->
+    <p class="section-label" style="margin-top:18px">Carrusel</p>
+    <div class="intro-grid">
+      <div class="control-group">
+        <label for="transition-select">Transición por beat</label>
+        <select id="transition-select">
+          <option value="cut">Corte seco</option>
+          <option value="flash">Flash blanco</option>
+          <option value="zoom">Zoom breve</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="resolution-select">Formato de video</label>
+        <select id="resolution-select">
+          <option value="vertical">Vertical 1080×1920</option>
+          <option value="horizontal">Horizontal 1920×1080</option>
+        </select>
+      </div>
+
+      <!-- Tilt -->
+      <div class="control-group">
+        <label>Ángulo de inclinación natural</label>
+        <label class="toggle-label">
+          <input type="checkbox" id="tilt-enable" />
+          <span class="toggle-text">Activar inclinación aleatoria</span>
+        </label>
+        <span class="hint" style="margin:0">Cada imagen se inclina a un ángulo distinto de forma natural</span>
+      </div>
+
+      <!-- (Asignación de meses: disponible en el Paso 3) -->
+    </div>
+  </section>
+
+  <!-- ── PASO 5: Render ─────────────────────────────────────────────── -->
+  <section id="step-render" class="card hidden">
+    <div class="card-header">
+      <h2><span class="step-badge">5</span>Vista previa y render</h2>
+    </div>
+    <div class="render-btns">
+      <button id="preview-btn" class="btn">▶ Vista previa (baja resolución)</button>
+      <button id="render-btn"  class="btn primary">🎬 Renderizar y descargar</button>
+    </div>
+    <div id="progress-wrap" class="hidden">
+      <label id="progress-label">Preparando…</label>
+      <progress id="progress-bar" value="0" max="100"></progress>
+      <span id="progress-pct">0%</span>
+    </div>
+    <div id="result-area" class="hidden"></div>
+  </section>
+
+</main>
+
+<!-- ── Modal: editor de encuadre + seek de video ─────────────────── -->
+<div id="crop-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-box">
+
+    <div class="modal-header">
+      <h3 id="crop-modal-title">Editar encuadre</h3>
+      <button id="crop-close" class="btn small" aria-label="Cerrar">✕ Cerrar</button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- Columna de video: solo visible para clips -->
+      <div id="crop-video-col" class="crop-video-col" style="display:none;margin-bottom:16px">
+        <p class="hint" style="margin:0 0 6px">
+          Reproduce y pausa en el momento que quieras usar como inicio del clip.
+        </p>
+        <video id="modal-video" controls preload="metadata"></video>
+        <div class="video-controls-bar" style="margin-top:8px">
+          <span id="video-seek-val">0.0 s</span>
+          <span id="video-dur-val"></span>
+          <button id="video-use-point" class="btn small primary">✓ Usar este punto</button>
+        </div>
+        <div id="video-seek-warn" style="display:none;margin-top:8px"></div>
+      </div>
+
+      <!-- Canvas de encuadre: siempre presente, nunca se mueve -->
+      <div>
+        <span class="crop-canvas-label" id="crop-canvas-label">
+          Arrastra el recuadro rojo para elegir qué parte se verá en el video.
+        </span>
+        <div id="crop-canvas-wrap" style="margin-top:8px">
+          <canvas id="crop-canvas"></canvas>
+          <div id="crop-rect"></div>
+        </div>
+      </div>
+
+    </div><!-- /.modal-body -->
+
+    <div class="modal-footer">
+      <button id="crop-reset" class="btn small">↺ Centrar</button>
+      <button id="crop-save"  class="btn primary">Aplicar encuadre</button>
+    </div>
+
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
