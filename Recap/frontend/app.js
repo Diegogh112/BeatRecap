@@ -432,66 +432,169 @@ $("tilt-enable").addEventListener("change", () => {
   saveSession();
 });
 
-// ── Panel de meses inline en paso 3 ─────────────────────────────────────────
+// ── Panel de meses por secciones con drag & drop ─────────────────────────────
 const MONTHS = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio",
                 "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const MONTH_NAMES = MONTHS.slice(1); // ["Enero",..."Diciembre"]
 
 function refreshMonthsSummary() {
   const count = Object.values(state.monthLabels).filter(Boolean).length;
-  // Mostrar resumen en el botón
   const btn = $("open-months-btn");
   if (btn) btn.textContent = count > 0 ? `📅 Meses (${count})` : "📅 Asignar meses";
 }
+
+/**
+ * Distribuye equitativamente las imágenes entre 12 meses.
+ * Si hay 12 → 1 por mes. Si hay 13 → 1 por mes, 1 se repite al primero, etc.
+ * Si hay 6  → 2 por mes. Si hay 3 → una cada 4 meses.
+ * Devuelve {imgIdx -> "NombreMes"} inicial (solo si el usuario no había asignado ya).
+ */
+function autoDistribute() {
+  // Distribuir basado en imagesNeeded() — el total que se usará en el carrusel
+  const needed = imagesNeeded();
+  const total  = needed > 0 ? needed : state.order.length;
+  if (total === 0) return;
+  // Solo auto-distribuir si aún no hay asignaciones
+  const hasAny = Object.values(state.monthLabels).some(Boolean);
+  if (hasAny) return;
+  const newLabels = {};
+  // Las imágenes en state.order (que se repiten si hay menos que needed)
+  // se distribuyen proporcionalmente entre 12 meses.
+  // Asignamos por posición en el carrusel (pos 0..total-1 → mes 0..11)
+  for (let pos = 0; pos < total; pos++) {
+    const imgIdx   = state.order[pos % state.order.length];
+    const monthIdx = Math.floor(pos * 12 / total);   // 0..11
+    // Solo sobreescribir si no tiene mes ya asignado
+    if (!newLabels[String(imgIdx)]) {
+      newLabels[String(imgIdx)] = MONTH_NAMES[monthIdx];
+    }
+  }
+  state.monthLabels = newLabels;
+  refreshMonthsSummary();
+  saveSession();
+}
+
+let _dragImgIdx = null;  // imgIdx del elemento que se está arrastrando
 
 function buildMonthsList() {
   const list = $("months-list");
   list.innerHTML = "";
   if (!state.images.length) {
-    list.innerHTML = '<p class="hint" style="margin:0;padding:8px">Sube imágenes primero.</p>';
+    list.innerHTML = '<p class="hint" style="padding:8px;margin:0">Sube imágenes primero.</p>';
     return;
   }
-  state.order.forEach((imgIdx, carouselPos) => {
-    const it    = state.images[imgIdx];
-    const saved = state.monthLabels[String(imgIdx)] || "";
-    const row   = document.createElement("div");
-    row.className = "month-row";
 
-    const img       = document.createElement("img");
-    img.src         = it.dataUrl;
-    img.className   = "month-thumb";
-
-    const name      = document.createElement("span");
-    name.className  = "month-name";
-    name.textContent = `#${carouselPos + 1} ${it.name}`;
-
-    const sel       = document.createElement("select");
-    sel.className   = "month-select";
-    sel.dataset.imgIdx = String(imgIdx);
-    MONTHS.forEach(m => {
-      const opt       = document.createElement("option");
-      opt.value       = m;
-      opt.textContent = m || "— sin mes —";
-      if (m === saved) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    // Guardar al instante al cambiar
-    sel.addEventListener("change", () => {
-      if (sel.value) state.monthLabels[String(imgIdx)] = sel.value;
-      else delete state.monthLabels[String(imgIdx)];
-      refreshMonthsSummary();
-      saveSession();
-    });
-
-    row.appendChild(img);
-    row.appendChild(name);
-    row.appendChild(sel);
-    list.appendChild(row);
+  // Construir mapa mes → [imgIdx en ese mes]
+  const byMonth = {};
+  MONTH_NAMES.forEach(m => { byMonth[m] = []; });
+  const unassigned = [];
+  state.order.forEach(imgIdx => {
+    const m = state.monthLabels[String(imgIdx)];
+    if (m && byMonth[m] !== undefined) byMonth[m].push(imgIdx);
+    else unassigned.push(imgIdx);
   });
+
+  // Renderizar sección "Sin mes" si hay imágenes sin asignar
+  if (unassigned.length > 0) {
+    list.appendChild(_makeMonthSection("Sin mes asignado", unassigned, "__none__"));
+  }
+
+  // Renderizar una sección por mes
+  MONTH_NAMES.forEach(m => {
+    list.appendChild(_makeMonthSection(m, byMonth[m], m));
+  });
+}
+
+function _makeMonthSection(label, imgIdxList, monthKey) {
+  const section = document.createElement("div");
+  section.className = "month-section";
+  section.dataset.month = monthKey;
+
+  const header = document.createElement("div");
+  header.className = "month-section-header";
+  header.innerHTML = `
+    <span class="month-name-label">${label}</span>
+    <span class="month-count">${imgIdxList.length} imagen(es)</span>`;
+  section.appendChild(header);
+
+  const grid = document.createElement("div");
+  grid.className = "month-thumbs-grid";
+  grid.dataset.month = monthKey;
+
+  if (imgIdxList.length === 0) {
+    const hint = document.createElement("span");
+    hint.className = "month-empty-hint";
+    hint.textContent = "Arrastra imágenes aquí";
+    grid.appendChild(hint);
+  } else {
+    imgIdxList.forEach(imgIdx => {
+      grid.appendChild(_makeMini(imgIdx));
+    });
+  }
+
+  // ── Drag & drop receptores ──────────────────────────────────────
+  grid.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    grid.classList.add("drag-over");
+  });
+  grid.addEventListener("dragleave", () => grid.classList.remove("drag-over"));
+  grid.addEventListener("drop", (e) => {
+    e.preventDefault();
+    grid.classList.remove("drag-over");
+    if (_dragImgIdx === null) return;
+    const targetMonth = grid.dataset.month;
+    if (targetMonth === "__none__") {
+      delete state.monthLabels[String(_dragImgIdx)];
+    } else {
+      state.monthLabels[String(_dragImgIdx)] = targetMonth;
+    }
+    _dragImgIdx = null;
+    refreshMonthsSummary();
+    saveSession();
+    buildMonthsList();   // reconstruir con nuevo estado
+  });
+
+  section.appendChild(grid);
+  return section;
+}
+
+function _makeMini(imgIdx) {
+  const it  = state.images[imgIdx];
+  // Posición en el carrusel para mostrar el número
+  const pos = state.order.indexOf(imgIdx);
+  const div = document.createElement("div");
+  div.className = "month-mini";
+  div.draggable = true;
+  div.dataset.imgIdx = String(imgIdx);
+
+  const img = document.createElement("img");
+  img.src   = it.dataUrl;
+  img.alt   = "";
+
+  const num = document.createElement("span");
+  num.className   = "mini-num";
+  num.textContent = pos + 1;
+
+  div.appendChild(img);
+  div.appendChild(num);
+
+  div.addEventListener("dragstart", (e) => {
+    _dragImgIdx = imgIdx;
+    div.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+  });
+  div.addEventListener("dragend", () => {
+    div.classList.remove("dragging");
+    _dragImgIdx = null;
+  });
+  return div;
 }
 
 $("open-months-btn").addEventListener("click", () => {
   const panel = $("months-panel");
   if (panel.classList.contains("hidden")) {
+    if (!state.images.length) return alert("Sube imágenes primero.");
+    autoDistribute();   // asignar meses automáticamente si aún no hay asignaciones
     buildMonthsList();
     show(panel);
     panel.scrollIntoView({ behavior: "smooth", block: "nearest" });

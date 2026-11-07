@@ -251,6 +251,27 @@ def run_render(
             seek      = _parse_seek(path)
             slots.append(_load_slot(path, seek, iv_sec, w, h, fps, cx, cy))
 
+        # Pre-calcular etiquetas por tiempo (12 segmentos de [drop, duration])
+        # _labels viene del frontend como {str(img_index): "Mes"} pero
+        # lo convertimos a {segmento_0_11: "Mes"} por tiempo.
+        # Si hay etiquetas por imagen, las re-mapeamos a segmentos temporales.
+        _carousel_dur = max_duration - drop
+        _seg_dur      = _carousel_dur / 12.0 if _carousel_dur > 0 else 1.0
+        # Construir mapa seg→label: el mes del primer imagen que cae en ese segmento
+        _seg_labels = {}
+        if _labels:
+            for ci, label in _labels.items():
+                if not label:
+                    continue
+                ci_int = int(ci)
+                if ci_int < len(intervals):
+                    img_t    = intervals[ci_int][0]     # tiempo de inicio de esa imagen
+                    seg_idx  = min(11, int((img_t - drop) / _seg_dur)) if _seg_dur > 0 else 0
+                    if seg_idx not in _seg_labels:      # primer imagen de cada segmento
+                        _seg_labels[seg_idx] = label
+
+        _last_shown_seg: list = [-1]   # mutable para closure
+
         # Estado para el efecto de pila (imagen anterior cuando hay tilt)
         _prev_frame: list = [None]   # mutable para captura en closure
 
@@ -288,7 +309,7 @@ def run_render(
                     mask  = Image.new("L", (w, h), alpha_prev)
                     base  = Image.composite(bg, base, mask)
 
-            # Etiqueta de mes
+            # Etiqueta de mes por tiempo
             label = _labels.get(str(carousel_i), "")
             if label:
                 iv_dur    = intervals[carousel_i][1] - intervals[carousel_i][0] if carousel_i < len(intervals) else 1.0
@@ -364,6 +385,21 @@ def run_render(
                 local_t = max(0.0, t - intervals[i][0])
                 base    = get_slot_frame(i, local_t)
                 frame   = _carousel_frame(base, intervals, i, t, transition)
+
+                # Etiqueta de mes por segmento de tiempo
+                if _seg_labels and _carousel_dur > 0:
+                    seg_idx = min(11, int((t - drop) / _seg_dur))
+                    label   = _seg_labels.get(seg_idx, "")
+                    # Mostrar el label durante los primeros 0.5s del segmento
+                    seg_local = (t - drop) - seg_idx * _seg_dur
+                    label_dur = min(0.5, _seg_dur * 0.4)
+                    if label and seg_local < label_dur:
+                        fade_in  = min(1.0, seg_local / 0.08)
+                        fade_out = min(1.0, (label_dur - seg_local) / 0.1) if seg_local > label_dur - 0.12 else 1.0
+                        frame = frames.draw_month_label(
+                            frame, label, font_name=font,
+                            color_hex=text_color, fade=fade_in * fade_out,
+                        )
 
             proc.stdin.write(frame.tobytes())
             if k % 15 == 0:

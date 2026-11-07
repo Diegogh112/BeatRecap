@@ -673,7 +673,7 @@ a.dl { text-decoration: none; }
   flex-shrink: 0;
 }
 
-/* ── Panel de meses inline en paso 3 ────────────────────────────── */
+/* ── Panel de meses por secciones ───────────────────────────────── */
 #months-panel {
   background: var(--panel-2);
   border: 1px solid var(--border-2);
@@ -685,31 +685,90 @@ a.dl { text-decoration: none; }
 #months-list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  max-height: 320px;
+  gap: 12px;
+  max-height: 55vh;
   overflow-y: auto;
+  padding-right: 4px;
 }
 
-.month-row {
-  display: grid;
-  grid-template-columns: 44px 1fr 160px;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+/* Cada sección de mes */
+.month-section {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 7px;
-}
-.month-thumb {
-  width: 44px; height: 58px;
-  object-fit: cover;
-  border-radius: 4px;
-}
-.month-name {
-  font-size: 12.5px;
-  color: var(--text-2);
+  border-radius: 10px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.month-select { font-size: 12.5px; }
+.month-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.month-section-header .month-name-label {
+  flex: 1;
+}
+.month-section-header .month-count {
+  font-size: 11px;
+  color: var(--text-3);
+  font-weight: 400;
+}
+
+/* Grid de thumbs dentro de cada mes */
+.month-thumbs-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px;
+  min-height: 72px;   /* zona de drop visible aunque esté vacía */
+}
+.month-thumbs-grid.drag-over {
+  background: rgba(79,140,255,0.08);
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+  border-radius: 6px;
+}
+
+/* Miniatura en el panel de meses */
+.month-mini {
+  position: relative;
+  width: 56px;
+  height: 80px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1.5px solid var(--border);
+  cursor: grab;
+  flex-shrink: 0;
+  background: #000;
+  transition: transform 0.12s, border-color 0.12s;
+}
+.month-mini:hover { border-color: var(--accent); transform: scale(1.05); }
+.month-mini img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.month-mini .mini-num {
+  position: absolute; top: 2px; left: 2px;
+  background: rgba(0,0,0,0.65);
+  color: #fff; font-size: 9px; font-weight: 700;
+  padding: 1px 4px; border-radius: 4px;
+  pointer-events: none;
+}
+.month-mini.dragging { opacity: 0.4; }
+
+/* Placeholder vacío */
+.month-empty-hint {
+  width: 100%;
+  font-size: 11.5px;
+  color: var(--text-3);
+  text-align: center;
+  padding: 8px 0;
+  align-self: center;
+}
+
+/* Estilos legacy (ya no usados activamente) */
+.month-row { display: none; }
+.month-thumb { display: none; }
+.month-name { display: none; }
+.month-select { display: none; }
