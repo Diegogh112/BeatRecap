@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Build outputs
+frontend/dist/
+frontend/.next/
+
+# Uploads and outputs (user data)
+backend/uploads/
+backend/outputs/
+backend/thumbnails/
+!backend/uploads/.gitkeep
+!backend/outputs/.gitkeep
+!backend/thumbnails/.gitkeep
+
+# AI models (large files)
+backend/models/*.onnx
+backend/models/*.pth
+backend/models/*.pkl
+!backend/models/.gitkeep
+
+# Database
+backend/*.db
+backend/*.db-journal
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Redis dump
+dump.rdb
+
+# Celery
+celerybeat-schedule
+celerybeat.pid

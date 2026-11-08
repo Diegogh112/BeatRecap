@@ -1,0 +1,21 @@
+# Dependencias mínimas para la API (sin modelos pesados de IA)
+# El worker usa requirements.txt que incluye InsightFace, GFPGAN, etc.
+
+fastapi==0.115.4
+uvicorn[standard]==0.32.1
+python-multipart==0.0.12
+aiofiles==24.1.0
+sqlalchemy==2.0.36
+alembic==1.14.0
+celery==5.4.0
+redis==5.2.0
+kombu==5.4.2
+pydantic==2.9.2
+pydantic-settings==2.6.1
+ffmpeg-python==0.2.0
+opencv-python-headless==4.10.0.84
+Pillow==11.0.0
+numpy==1.26.4
+python-dotenv==1.0.1
+httpx==0.27.2
+loguru==0.7.2
